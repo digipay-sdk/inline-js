@@ -15,12 +15,13 @@
   },
   "keywords": [
     "digipay",
+    "digipay-sdk",
     "payment",
     "pi-network",
     "blockchain",
     "cryptocurrency"
   ],
-  "author": "DigiPay",
+  "author": "DigiPay SDK",
   "license": "MIT",
   "devDependencies": {
     "@rollup/plugin-commonjs": "^26.0.1",
@@ -34,5 +35,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/digipay-sdk/inline-js"
-  }
+  },
+  "bugs": {
+    "url": "https://github.com/digipay-sdk/inline-js/issues"
+  },
+  "homepage": "https://github.com/digipay-sdk/inline-js#readme"
 }

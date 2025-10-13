@@ -1,23 +1,23 @@
-# @digipay/inline-js
+# @digipay-sdk/inline-js
 
 Official JavaScript SDK for DigiPay - Accept Pi Network payments in your application.
 
 ## Installation
 
 ```bash
-npm install @digipay/inline-js
+npm install @digipay-sdk/inline-js
 ```
 
 or
 
 ```bash
-yarn add @digipay/inline-js
+yarn add @digipay-sdk/inline-js
 ```
 
 or
 
 ```bash
-pnpm add @digipay/inline-js
+pnpm add @digipay-sdk/inline-js
 ```
 
 ## Prerequisites
