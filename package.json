@@ -1,0 +1,38 @@
+{
+  "name": "@digipay-sdk/inline-js",
+  "version": "1.0.0",
+  "description": "DigiPay JavaScript SDK for Pi Network payments",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "digipay",
+    "payment",
+    "pi-network",
+    "blockchain",
+    "cryptocurrency"
+  ],
+  "author": "DigiPay",
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^26.0.1",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "rollup": "^4.18.0",
+    "tslib": "^2.6.3",
+    "typescript": "^5.5.3"
+  },
+  "peerDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/digipay-sdk/inline-js"
+  }
+}
