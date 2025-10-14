@@ -512,7 +512,7 @@ export class DigiPay {
   }
 
   private openExplorer(): void {
-    const explorerUrl = 'https://blockexplorer.minepi.com/tx/' + document.getElementById('digipayReference')!.textContent;
+    const explorerUrl = 'https://blockexplorer.minepi.com/tx/' + (this.transaction?.pitxid || '');
     window.open(explorerUrl, '_blank');
   }
 
@@ -565,6 +565,12 @@ export class DigiPay {
         document.getElementById('digipayMerchantName')!.textContent = merchantData.name;
       } else if (this.config.slug) {
         const paymentLinkData = await this.api.fetchPaymentLinkData(this.config.slug);
+        this.merchantData = {
+          name: paymentLinkData.merchant.name,
+          email: paymentLinkData.merchant.email,
+          publickey: '',
+          kycstatus: ''
+        };
         document.getElementById('digipayMerchantName')!.textContent = paymentLinkData.title;
         this.config.description = paymentLinkData.description || this.config.description;
         if (paymentLinkData.amount > 0) {

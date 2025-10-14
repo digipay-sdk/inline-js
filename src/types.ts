@@ -23,6 +23,7 @@ export interface Transaction {
   pipaymentid: string;
   paymentwalletaddress: string;
   qrcodeurl: string;
+  pitxid?: string;
 }
 
 export interface MerchantMetadata {

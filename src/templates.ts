@@ -23,7 +23,7 @@ export const MODAL_HTML = `
             <div class="digipay-section digipay-auth-content">
               <div class="digipay-auth-spinner"></div>
               <h3>Waiting for Pi Authentication</h3>
-              <p>Please approve the authentication request in your Pi Browser</p>
+              <p>Please wait while we approve the authentication request</p>
             </div>
           </div>
 
@@ -43,6 +43,14 @@ export const MODAL_HTML = `
               </div>
             </div>
             <div class="digipay-section">
+              <div class="digipay-amount-wrapper-auth">
+                <div class="digipay-amount-auth">
+                  <span id="digipayAmountAuth"></span>
+                </div>
+                <div class="digipay-amount-skeleton" id="digipayAmountSkeletonAuth"></div>
+              </div>
+            </div>
+            <div class="digipay-section">
               <div class="digipay-section-header">
                 <h2>Order Summary</h2>
                 <div class="digipay-currency-selector">
@@ -57,12 +65,6 @@ export const MODAL_HTML = `
                   <h3 id="digipayMerchantNameAuth"></h3>
                   <p id="digipayDescriptionAuth"></p>
                 </div>
-              </div>
-              <div class="digipay-amount-wrapper">
-                <div class="digipay-amount">
-                  <span id="digipayAmountAuth"></span>
-                </div>
-                <div class="digipay-amount-skeleton" id="digipayAmountSkeletonAuth"></div>
               </div>
             </div>
             <div class="digipay-section">
@@ -222,6 +224,9 @@ export const MODAL_HTML = `
 
           <div class="digipay-footer-center">
             <div class="digipay-brand">
+              <svg class="digipay-secure-icon" viewBox="0 0 24 24" width="16" height="16">
+                <path fill="currentColor" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+              </svg>
               <span>Powered by</span>
               <div class="digipay-logo">
                 <span>D</span>
@@ -367,6 +372,19 @@ export const MODAL_STYLES = `
     border-radius: 8px;
     display: none;
     animation: skeletonPulse 1.5s ease-in-out infinite;
+  }
+
+  .digipay-amount-wrapper-auth {
+    margin: 16px 0;
+    position: relative;
+    min-height: 50px;
+    text-align: center;
+  }
+
+  .digipay-amount-auth {
+    font-size: 48px;
+    font-weight: bold;
+    display: inline-block;
   }
   
   .digipay-secure {
@@ -684,6 +702,10 @@ export const MODAL_STYLES = `
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+
+  .digipay-secure-icon {
+    color: #4CAF50;
   }
   
   .digipay-logo {

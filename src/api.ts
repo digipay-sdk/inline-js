@@ -45,6 +45,10 @@ export class DigiPayAPI {
     minAmount?: number;
     maxAmount?: number;
     customFields?: any[];
+    merchant: {
+      name: string;
+      email: string;
+    };
   }> {
     const response = await fetch(`${this.apiUrl}/payment-link/slug/${slug}`);
 
@@ -91,7 +95,7 @@ export class DigiPayAPI {
     customFieldsData?: Record<string, any>;
   }): Promise<Transaction> {
     if (this.slug) {
-      const response = await fetch(`${this.apiUrl}/payment/slug-intent`, {
+      const response = await fetch(`${this.apiUrl}/payment/inline-intent-slug`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -99,8 +103,10 @@ export class DigiPayAPI {
         body: JSON.stringify({
           slug: this.slug,
           amount: data.amount,
+          currency: data.currency,
+          description: data.description,
+          metadata: data.metadata,
           customer: data.customer,
-          customFieldsData: data.customFieldsData,
         }),
       });
 
@@ -188,6 +194,24 @@ export class DigiPayAPI {
       username: string;
     };
   }): Promise<{ uid: string; username: string; lastAuthenticatedAt: Date }> {
+    if (this.slug) {
+      const response = await fetch(`${this.apiUrl}/customer/signin-slug`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ slug: this.slug, authResult }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to sign in customer');
+      }
+
+      const result = await response.json();
+      return result.data;
+    }
+
     if (!this.publicKey) {
       throw new Error('Public key required for customer sign in');
     }
@@ -211,6 +235,23 @@ export class DigiPayAPI {
   }
 
   async signOutCustomer(piUserId: string): Promise<void> {
+    if (this.slug) {
+      const response = await fetch(`${this.apiUrl}/customer/signout-slug`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ slug: this.slug, piUserId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to sign out customer');
+      }
+
+      return;
+    }
+
     if (!this.publicKey) {
       throw new Error('Public key required for customer sign out');
     }
