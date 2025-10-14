@@ -1,5 +1,6 @@
 import { DigiPayConfig, Transaction, MerchantMetadata, PiAuthResult } from './types';
 import { DigiPayAPI } from './api';
+import { MODAL_HTML, MODAL_STYLES, CURRENCY_SYMBOLS } from './templates';
 
 export class DigiPay {
   private config: DigiPayConfig;
@@ -8,10 +9,32 @@ export class DigiPay {
   private merchantData: MerchantMetadata | null = null;
   private piUser: PiAuthResult | null = null;
   private baseAmount: number;
+  private timer: ReturnType<typeof setInterval> | null = null;
+
+  private overlay!: HTMLElement;
+  private closeBtn!: HTMLButtonElement;
+  private generateBtn!: HTMLButtonElement;
+  private loginBtn!: HTMLButtonElement;
+  private copyBtn!: HTMLButtonElement;
+  private cancelBtn!: HTMLButtonElement;
+  private closeSuccessBtn!: HTMLButtonElement;
+  private closeErrorBtn!: HTMLButtonElement;
+  private retryBtn!: HTMLButtonElement;
+  private currencySelect!: HTMLSelectElement;
+  private backBtn!: HTMLButtonElement;
+  private confirmBtn!: HTMLButtonElement;
+  private explorerBtn!: HTMLButtonElement;
+  private walletInput!: HTMLInputElement;
+  private walletError!: HTMLElement;
+
+  private loadingView!: HTMLElement;
+  private initialView!: HTMLElement;
+  private walletView!: HTMLElement;
+  private successView!: HTMLElement;
+  private errorView!: HTMLElement;
 
   constructor(config: DigiPayConfig) {
     this.config = {
-      apiUrl: 'http://localhost:5000/api/v1',
       currency: 'PI',
       currencies: ['PI', 'USD', 'EUR', 'GBP'],
       ...config,
@@ -21,34 +44,182 @@ export class DigiPay {
     this.api = new DigiPayAPI(this.config);
   }
 
-  async initialize(): Promise<void> {
-    if (!this.config.publicKey) {
-      throw new Error('Public key is required');
-    }
+  private renderModal(): void {
+    const styleSheet = document.createElement('style');
+    styleSheet.textContent = MODAL_STYLES;
+    document.head.appendChild(styleSheet);
 
-    try {
-      this.merchantData = await this.api.fetchMerchantMetadata();
-    } catch (error: any) {
-      throw new Error(error.message || 'Failed to initialize payment');
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = MODAL_HTML;
+    document.body.appendChild(modalContainer.firstElementChild!);
+
+    this.initializeElements();
+    this.initializeCurrencySelector();
+    this.updateContent();
+    this.bindEvents();
+  }
+
+  private initializeElements(): void {
+    this.overlay = document.getElementById('digipayOverlay')!;
+    this.closeBtn = document.getElementById('digipayClose') as HTMLButtonElement;
+    this.generateBtn = document.getElementById('digipayGenerateBtn') as HTMLButtonElement;
+    this.loginBtn = document.getElementById('digipayLoginBtn') as HTMLButtonElement;
+    this.copyBtn = document.getElementById('digipayCopyBtn') as HTMLButtonElement;
+    this.cancelBtn = document.getElementById('digipayCancelBtn') as HTMLButtonElement;
+    this.closeSuccessBtn = document.getElementById('digipayCloseSuccessBtn') as HTMLButtonElement;
+    this.closeErrorBtn = document.getElementById('digipayCloseErrorBtn') as HTMLButtonElement;
+    this.retryBtn = document.getElementById('digipayRetryBtn') as HTMLButtonElement;
+    this.currencySelect = document.getElementById('digipayCurrency') as HTMLSelectElement;
+    this.backBtn = document.getElementById('digipayBackBtn') as HTMLButtonElement;
+    this.confirmBtn = document.getElementById('digipayConfirmBtn') as HTMLButtonElement;
+    this.explorerBtn = document.getElementById('digipayExplorerBtn') as HTMLButtonElement;
+    this.walletInput = document.getElementById('userWalletAddress') as HTMLInputElement;
+    this.walletError = document.getElementById('walletAddressError')!;
+
+    this.loadingView = document.getElementById('digipayLoadingView')!;
+    this.initialView = document.getElementById('digipayInitialView')!;
+    this.walletView = document.getElementById('digipayWalletView')!;
+    this.successView = document.getElementById('digipaySuccessView')!;
+    this.errorView = document.getElementById('digipayErrorView')!;
+  }
+
+  private initializeCurrencySelector(): void {
+    this.config.currencies?.forEach(currency => {
+      const option = document.createElement('option');
+      option.value = currency;
+      option.textContent = currency;
+      if (currency === this.config.currency) {
+        option.selected = true;
+      }
+      this.currencySelect.appendChild(option);
+    });
+  }
+
+  private updateContent(): void {
+    document.getElementById('digipayDescription')!.textContent = this.config.description || '';
+    this.updateAmountDisplay();
+  }
+
+  private bindEvents(): void {
+    this.closeBtn.onclick = () => this.close();
+    this.overlay.onclick = (e) => {
+      if (e.target === this.overlay) this.close();
+    };
+
+    this.generateBtn.onclick = () => this.generateWalletAddress();
+    this.loginBtn.onclick = () => this.login();
+    this.copyBtn.onclick = () => this.copyWalletAddress();
+    this.cancelBtn.onclick = () => this.cancelPayment();
+    this.closeSuccessBtn.onclick = () => this.close();
+    this.closeErrorBtn.onclick = () => this.close();
+    this.retryBtn.onclick = async () => await this.open();
+    this.backBtn.onclick = () => this.goBack();
+    this.confirmBtn.onclick = () => this.initiatePayment();
+    this.explorerBtn.onclick = () => this.openExplorer();
+    this.currencySelect.onchange = async (e) => {
+      this.config.currency = (e.target as HTMLSelectElement).value;
+      await this.updateAmountWithRates();
+    };
+
+    this.walletInput.oninput = () => {
+      this.validateWalletAddress(this.walletInput.value.trim());
+    };
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this.close();
+    });
+
+    this.validateWalletAddress(this.walletInput.value.trim());
+  }
+
+  private validateWalletAddress(address: string): void {
+    const piAddressRegex = /^[A-Z0-9]{56}$/;
+    const isValid = piAddressRegex.test(address);
+    
+    if (!address) {
+      this.walletError.textContent = 'Pi wallet address is required';
+      this.generateBtn.disabled = true;
+      this.generateBtn.classList.add('disabled');
+    } else if (!isValid) {
+      this.walletError.textContent = 'Please enter a valid Pi wallet address (56 characters, uppercase letters and numbers only)';
+      this.generateBtn.disabled = true;
+      this.generateBtn.classList.add('disabled');
+    } else {
+      this.walletError.textContent = '';
+      this.generateBtn.disabled = false;
+      this.generateBtn.classList.remove('disabled');
     }
   }
 
-  async convertCurrency(targetCurrency: string): Promise<number> {
+  private showView(view: HTMLElement): void {
+    this.loadingView.style.display = 'none';
+    this.initialView.style.display = 'none';
+    this.walletView.style.display = 'none';
+    this.successView.style.display = 'none';
+    this.errorView.style.display = 'none';
+    view.style.display = 'block';
+  }
+
+  private setButtonLoading(button: HTMLButtonElement, isLoading: boolean): void {
+    if (isLoading) {
+      button.classList.add('loading');
+      button.disabled = true;
+    } else {
+      button.classList.remove('loading');
+      button.disabled = false;
+    }
+  }
+
+  private updateAmountDisplay(): void {
+    const symbol = CURRENCY_SYMBOLS[this.config.currency! as keyof typeof CURRENCY_SYMBOLS] || this.config.currency;
+    document.getElementById('digipayAmount')!.textContent = symbol + ' ' + this.config.amount;
+  }
+
+  private async updateAmountWithRates(): Promise<void> {
+    const amountElement = document.getElementById('digipayAmount')!;
+    const skeletonElement = document.getElementById('digipayAmountSkeleton')!;
+
+    amountElement.style.visibility = 'hidden';
+    skeletonElement.style.display = 'block';
+
     try {
       const result = await this.api.convertAmount(
         this.baseAmount,
         'PI',
-        targetCurrency
+        this.config.currency || 'PI'
       );
-      return result.convertedAmount;
+      this.config.amount = result.convertedAmount.toFixed(2);
+      this.updateAmountDisplay();
     } catch (error) {
-      throw new Error('Failed to convert currency');
+      console.error('Error updating amount:', error);
+    } finally {
+      skeletonElement.style.display = 'none';
+      amountElement.style.visibility = 'visible';
     }
   }
 
-  async createPayment(): Promise<Transaction> {
+  private startTimer(): void {
+    let timeLeft = 180;
+    const timerElement = document.getElementById('digipayTimer')!;
+    
+    this.timer = setInterval(() => {
+      timeLeft--;
+      const minutes = Math.floor(timeLeft / 60);
+      const seconds = timeLeft % 60;
+      timerElement.textContent = String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+      
+      if (timeLeft <= 0) {
+        if (this.timer) clearInterval(this.timer);
+        this.cancelPayment();
+      }
+    }, 1000);
+  }
+
+  private async generateWalletAddress(): Promise<void> {
+    this.setButtonLoading(this.generateBtn, true);
+
     try {
-      const transaction = await this.api.createPaymentIntent({
+      const paymentIntent = await this.api.createPaymentIntent({
         amount: parseFloat(this.config.amount),
         currency: this.config.currency || 'PI',
         description: this.config.description,
@@ -56,40 +227,64 @@ export class DigiPay {
         customer: this.config.customer,
       });
 
-      this.transaction = transaction;
-      return transaction;
+      this.transaction = paymentIntent;
+      this.showView(this.walletView);
+
+      const paymentDetails = document.getElementById('digipayPaymentDetails')!;
+      const walletSkeleton = document.getElementById('digipayWalletSkeleton')!;
+      paymentDetails.style.display = 'none';
+      walletSkeleton.style.display = 'block';
+
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      document.getElementById('digipayWalletAddressText')!.textContent = paymentIntent.paymentwalletaddress;
+      document.getElementById('digipayWalletAmount')!.textContent =
+        (CURRENCY_SYMBOLS[this.config.currency! as keyof typeof CURRENCY_SYMBOLS] || this.config.currency) + ' ' + this.config.amount;
+
+      document.getElementById('digipayQRCode')!.setAttribute('src', paymentIntent.qrcodeurl);
+      
+      walletSkeleton.style.display = 'none';
+      paymentDetails.style.display = 'block';
+      
+      this.startTimer();
     } catch (error: any) {
-      throw new Error(error.message || 'Failed to create payment');
+      this.handleError(error);
+    } finally {
+      this.setButtonLoading(this.generateBtn, false);
     }
   }
 
-  async authenticateWithPi(): Promise<PiAuthResult> {
+  private async login(): Promise<void> {
     if (!window.Pi) {
-      throw new Error('Pi SDK not loaded. Please use this in Pi Browser.');
+      this.handleError(new Error('Pi SDK not loaded'));
+      return;
     }
 
     try {
+      this.setButtonLoading(this.loginBtn, true);
       const scopes = ['username', 'payments', 'wallet_address'];
-
-      const onIncompletePaymentFound = (payment: any) => {
-        console.log('Incomplete payment found:', payment);
-      };
-
-      const auth = await window.Pi.authenticate(scopes, onIncompletePaymentFound);
+      const auth = await window.Pi.authenticate(scopes, this.handleIncompletePayment);
+      console.log('auth', auth);
       this.piUser = auth;
-      return auth;
+      this.walletInput.value = auth.user.uid;
+      const validateEvent = new Event('input', { bubbles: true });
+      this.walletInput.dispatchEvent(validateEvent);
     } catch (error: any) {
-      throw new Error(error.message || 'Pi authentication failed');
+      this.handleError(error);
+    } finally {
+      this.setButtonLoading(this.loginBtn, false);
     }
   }
 
-  async initiatePayment(): Promise<void> {
+  private async initiatePayment(): Promise<void> {
     if (!window.Pi) {
-      throw new Error('Pi SDK not loaded. Please use this in Pi Browser.');
+      this.handleError(new Error('Pi SDK not loaded'));
+      return;
     }
 
     if (!this.transaction) {
-      throw new Error('No transaction found. Please create payment first.');
+      this.handleError(new Error('No transaction found'));
+      return;
     }
 
     try {
@@ -103,38 +298,39 @@ export class DigiPay {
         },
       };
 
-      const paymentCallbacks = {
-        onReadyForServerApproval: (paymentId: string) => {
-          console.log('Payment ready for approval:', paymentId);
-        },
-        onReadyForServerCompletion: async (paymentId: string, txid: string) => {
-          console.log('Payment ready for completion:', paymentId, txid);
-          await this.completePayment(txid);
-        },
-        onCancel: (paymentId: string) => {
-          console.log('Payment cancelled:', paymentId);
-          if (this.config.onCancel) {
-            this.config.onCancel();
-          }
-        },
-        onError: (error: Error, payment?: any) => {
-          console.error('Payment error:', error, payment);
-          if (this.config.onError) {
-            this.config.onError(error.message || 'Payment failed');
-          }
-        },
-      };
-
-      await window.Pi.createPayment(paymentData, paymentCallbacks);
+      await window.Pi.createPayment(paymentData, {
+        onReadyForServerApproval: this.handlePaymentApproval,
+        onReadyForServerCompletion: this.handlePaymentCompletion,
+        onCancel: this.handlePaymentCancel,
+        onError: this.handlePaymentError,
+      });
     } catch (error: any) {
-      throw new Error(error.message || 'Failed to initiate payment');
+      this.handleError(error);
     }
   }
 
-  async completePayment(txid: string): Promise<void> {
-    if (!this.transaction) {
-      throw new Error('No transaction found');
-    }
+  private handleIncompletePayment = (payment: any): void => {
+    console.log('Incomplete payment:', payment);
+  };
+
+  private handlePaymentApproval = (paymentId: string): void => {
+    console.log('Payment approved:', paymentId);
+  };
+
+  private handlePaymentCompletion = async (paymentId: string, txid: string): Promise<void> => {
+    await this.completePayment(txid);
+  };
+
+  private handlePaymentCancel = (paymentId: string): void => {
+    this.cancelPayment();
+  };
+
+  private handlePaymentError = (error: Error): void => {
+    this.handleError(error);
+  };
+
+  private async completePayment(txid: string): Promise<void> {
+    if (!this.transaction) return;
 
     try {
       const result = await this.api.completePayment(
@@ -143,29 +339,111 @@ export class DigiPay {
       );
 
       this.transaction = result;
-
-      if (this.config.onSuccess) {
-        this.config.onSuccess(result);
-      }
+      this.processPayment();
     } catch (error: any) {
-      if (this.config.onError) {
-        this.config.onError(
-          error.message || 'Failed to verify payment. Please contact support.'
-        );
-      }
-      throw error;
+      this.handleError(error);
     }
   }
 
-  getTransaction(): Transaction | null {
-    return this.transaction;
+  private processPayment(): void {
+    if (this.timer) clearInterval(this.timer);
+
+    if (this.transaction) {
+      document.getElementById('digipayReference')!.textContent = this.transaction.transactionref;
+    }
+
+    this.showView(this.successView);
+    if (this.config.onSuccess) {
+      this.config.onSuccess(this.transaction!);
+    }
   }
 
-  getMerchantData(): MerchantMetadata | null {
-    return this.merchantData;
+  private copyWalletAddress(): void {
+    const walletAddress = document.getElementById('digipayWalletAddressText')!.textContent;
+    if (walletAddress) {
+      navigator.clipboard.writeText(walletAddress);
+      
+      const originalText = this.copyBtn.innerHTML;
+      this.copyBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20"><path fill="#4CAF50" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+      setTimeout(() => {
+        this.copyBtn.innerHTML = originalText;
+      }, 2000);
+    }
   }
 
-  getPiUser(): PiAuthResult | null {
-    return this.piUser;
+  private openExplorer(): void {
+    const explorerUrl = 'https://pi-blockchain.net/tx/' + document.getElementById('digipayReference')!.textContent;
+    window.open(explorerUrl, '_blank');
+  }
+
+  private goBack(): void {
+    this.showView(this.initialView);
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+  }
+
+  private cancelPayment(): void {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+    this.close();
+  }
+
+  private handleError(error: Error): void {
+    const message = error.message || 'Payment failed';
+    document.getElementById('digipayErrorMessage')!.textContent = message;
+    this.showView(this.errorView);
+    if (this.config.onError) {
+      this.config.onError(message);
+    }
+  }
+
+  async open(): Promise<void> {
+    if (!this.config.publicKey) {
+      this.handleError(new Error('Public key is required'));
+      return;
+    }
+
+    try {
+      this.renderModal();
+      this.overlay.style.display = 'block';
+      document.body.style.overflow = 'hidden';
+      this.showView(this.loadingView);
+
+      const merchantData = await this.api.fetchMerchantMetadata();
+      this.merchantData = merchantData;
+      document.getElementById('digipayMerchantName')!.textContent = merchantData.name;
+
+      await this.updateAmountWithRates();
+      this.showView(this.initialView);
+    } catch (error: any) {
+      this.handleError(error);
+    }
+  }
+
+  private close(): void {
+    this.overlay.style.display = 'none';
+    document.body.style.overflow = '';
+
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+
+    this.transaction = null;
+    this.merchantData = null;
+    this.walletInput.value = '';
+
+    if (this.config.onCancel) {
+      this.config.onCancel();
+    }
+
+    const modalElement = document.getElementById('digipayOverlay');
+    if (modalElement && modalElement.parentNode) {
+      modalElement.parentNode.removeChild(modalElement);
+    }
   }
 }

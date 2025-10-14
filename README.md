@@ -36,10 +36,9 @@ Make sure to include the Pi Network SDK in your HTML:
 ### Basic Example
 
 ```javascript
-import { DigiPay } from '@digipay/inline-js';
+import { DigiPay } from '@digipay-sdk/inline-js';
 
 const digiPay = new DigiPay({
-  apiUrl: 'https://api.digipay.com/api/v1',
   publicKey: 'pk_live_xxxxxxxxx',
   description: 'Premium Package Subscription',
   amount: '49.99',
@@ -54,84 +53,50 @@ const digiPay = new DigiPay({
   },
   onSuccess: (transaction) => {
     console.log('Payment successful!', transaction);
-    // Handle successful payment
   },
   onCancel: () => {
     console.log('Payment cancelled');
-    // Handle cancellation
   },
   onError: (error) => {
     console.error('Payment failed:', error);
-    // Handle error
   }
 });
 
-// Initialize and create payment
-async function processPayment() {
-  try {
-    // Initialize (fetches merchant data)
-    await digiPay.initialize();
-
-    // Authenticate user with Pi Network
-    const auth = await digiPay.authenticateWithPi();
-    console.log('User authenticated:', auth.user);
-
-    // Create payment intent
-    const transaction = await digiPay.createPayment();
-    console.log('Transaction created:', transaction);
-
-    // Initiate Pi payment flow
-    await digiPay.initiatePayment();
-  } catch (error) {
-    console.error('Error:', error);
-  }
-}
-
-// Call when user clicks "Pay with Pi"
-processPayment();
+digiPay.open();
 ```
 
 ### React Example
 
 ```jsx
-import { useState } from 'react';
-import { DigiPay } from '@digipay/inline-js';
+import { DigiPay } from '@digipay-sdk/inline-js';
 
 function PaymentButton() {
-  const [loading, setLoading] = useState(false);
-
-  const handlePayment = async () => {
-    setLoading(true);
-
+  const handlePayment = () => {
     const digiPay = new DigiPay({
-      apiUrl: 'https://api.digipay.com/api/v1',
       publicKey: process.env.NEXT_PUBLIC_DIGIPAY_PUBLIC_KEY,
       amount: '49.99',
       description: 'Premium Package',
+      customer: {
+        email: 'user@example.com',
+        name: 'John Doe'
+      },
+      metadata: {
+        orderId: 'xxxxxxxx'
+      },
       onSuccess: (transaction) => {
         alert('Payment successful! Ref: ' + transaction.transactionref);
-        setLoading(false);
       },
       onError: (error) => {
         alert('Payment failed: ' + error);
-        setLoading(false);
       }
     });
 
-    try {
-      await digiPay.initialize();
-      await digiPay.authenticateWithPi();
-      await digiPay.createPayment();
-      await digiPay.initiatePayment();
-    } catch (error) {
-      console.error(error);
-      setLoading(false);
-    }
+    digiPay.open();
   };
 
   return (
-    <button onClick={handlePayment} disabled={loading}>
-      {loading ? 'Processing...' : 'Pay with Pi'}
+    <button onClick={handlePayment}>
+      Pay with Pi
     </button>
   );
 }
@@ -142,14 +107,14 @@ function PaymentButton() {
 ```jsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Script from 'next/script';
-import { DigiPay } from '@digipay/inline-js';
+import { DigiPay } from '@digipay-sdk/inline-js';
 
 export default function CheckoutPage() {
   const [piLoaded, setPiLoaded] = useState(false);
 
-  const handlePayment = async () => {
+  const handlePayment = () => {
     const digiPay = new DigiPay({
       publicKey: process.env.NEXT_PUBLIC_DIGIPAY_PUBLIC_KEY!,
       amount: '49.99',
@@ -163,14 +128,7 @@ export default function CheckoutPage() {
       }
     });
 
-    try {
-      await digiPay.initialize();
-      await digiPay.authenticateWithPi();
-      await digiPay.createPayment();
-      await digiPay.initiatePayment();
-    } catch (error) {
-      console.error(error);
-    }
+    digiPay.open();
   };
 
   return (
@@ -199,7 +157,6 @@ export default function CheckoutPage() {
 
 ```typescript
 interface DigiPayConfig {
-  apiUrl?: string;              // DigiPay API URL (default: http://localhost:5000/api/v1)
   publicKey: string;            // Your DigiPay public key (required)
   description?: string;         // Payment description
   amount: string;               // Payment amount
@@ -218,29 +175,19 @@ interface DigiPayConfig {
 
 ### Methods
 
-#### `initialize(): Promise<void>`
-Fetches merchant metadata and validates the public key.
+#### `open(): Promise<void>`
+Opens the payment modal and handles the entire payment flow:
+- Fetches merchant metadata and validates the public key
+- Displays payment modal with order summary and currency selector
+- Shows "Login with Pi" button for user authentication (optional)
+- Allows user to enter wallet address or use authenticated Pi UID
+- Creates payment intent when user proceeds
+- Initiates Pi payment flow when user confirms
 
-#### `authenticateWithPi(): Promise<PiAuthResult>`
-Authenticates the user with Pi Network and requests necessary permissions.
+**Note:** Authentication with Pi Network happens when the user clicks the "Login with Pi" button in the modal, not automatically on open.
 
-#### `createPayment(): Promise<Transaction>`
-Creates a payment intent on the backend.
-
-#### `initiatePayment(): Promise<void>`
-Initiates the Pi Network payment flow. This opens the Pi payment dialog.
-
-#### `convertCurrency(targetCurrency: string): Promise<number>`
-Converts the payment amount to the target currency.
-
-#### `getTransaction(): Transaction | null`
-Returns the current transaction object.
-
-#### `getMerchantData(): MerchantMetadata | null`
-Returns the merchant metadata.
-
-#### `getPiUser(): PiAuthResult | null`
-Returns the authenticated Pi user data.
+#### `close(): void`
+Closes the payment modal and resets the state.
 
 ## Environment Variables
 
@@ -248,7 +195,6 @@ For Next.js/React apps, add to your `.env.local`:
 
 ```env
 NEXT_PUBLIC_DIGIPAY_PUBLIC_KEY=pk_live_xxxxxxxxx
-NEXT_PUBLIC_DIGIPAY_API_URL=https://api.digipay.com/api/v1
 ```
 
 ## Testing
@@ -262,7 +208,7 @@ Pi.init({ version: "2.0", sandbox: true });
 ## Support
 
 - Documentation: https://docs.digipay.com
-- Issues: https://github.com/digipay/inline-js/issues
+- Issues: https://github.com/digipay-sdk/inline-js/issues
 - Email: support@digipay.com
 
 ## License

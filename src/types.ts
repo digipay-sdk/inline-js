@@ -1,5 +1,4 @@
 export interface DigiPayConfig {
-  apiUrl?: string;
   publicKey: string;
   description?: string;
   amount: string;
@@ -10,7 +9,7 @@ export interface DigiPayConfig {
     email?: string;
     name?: string;
   };
-  onSuccess?: (transaction: any) => void;
+  onSuccess?: (transaction: Transaction) => void;
   onCancel?: () => void;
   onError?: (error: string) => void;
 }

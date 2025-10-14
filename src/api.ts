@@ -1,16 +1,10 @@
-import {
-  DigiPayConfig,
-  Transaction,
-  MerchantMetadata,
-  CurrencyRatesResponse,
-} from './types';
+import { DigiPayConfig, Transaction, MerchantMetadata, CurrencyRatesResponse } from './types';
 
 export class DigiPayAPI {
-  private apiUrl: string;
+  private apiUrl: string = 'http://localhost:3003/api/v1';
   private publicKey: string;
 
   constructor(config: DigiPayConfig) {
-    this.apiUrl = config.apiUrl || 'http://localhost:5000/api/v1';
     this.publicKey = config.publicKey;
   }
 
@@ -80,7 +74,7 @@ export class DigiPayAPI {
     return response.json();
   }
 
-  async completePayment(transactionRef: string, txid: string): Promise<any> {
+  async completePayment(transactionRef: string, txid: string): Promise<Transaction> {
     const response = await fetch(`${this.apiUrl}/payment/complete`, {
       method: 'POST',
       headers: {

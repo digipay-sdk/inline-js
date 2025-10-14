@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test DigiPay NPM Module</title>
+</head>
+<body>
+  <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 20px;">
+    <h1>Test DigiPay NPM Module</h1>
+    <button id="payBtn" style="padding: 16px 32px; font-size: 18px; font-weight: bold; background: #F3B641; color: #0A0F1C; border: none; border-radius: 12px; cursor: pointer;">
+      Pay with Pi
+    </button>
+  </div>
+
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+  <script>
+    Pi.init({ version: '2.0', sandbox: true });
+  </script>
+
+  <script type="module">
+    import { DigiPay } from './dist/index.esm.js';
+
+    document.getElementById('payBtn').addEventListener('click', () => {
+      const digiPay = new DigiPay({
+        apiUrl: 'http://localhost:3003/api/v1',
+        publicKey: 'pk_live_test123',
+        amount: '49.99',
+        description: 'Test Payment',
+        onSuccess: (transaction) => {
+          console.log('Success:', transaction);
+          alert('Payment successful!');
+        },
+        onError: (error) => {
+          console.error('Error:', error);
+          alert('Payment failed: ' + error);
+        }
+      });
+
+      digiPay.open();
+    });
+  </script>
+</body>
+</html>
