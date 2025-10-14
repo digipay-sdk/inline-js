@@ -1,5 +1,6 @@
 export interface DigiPayConfig {
-  publicKey: string;
+  publicKey?: string;
+  slug?: string;
   description?: string;
   amount: string;
   currency?: string;

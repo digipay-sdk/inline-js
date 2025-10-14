@@ -2,23 +2,55 @@ import { DigiPayConfig, Transaction, MerchantMetadata, CurrencyRatesResponse } f
 
 export class DigiPayAPI {
   private apiUrl: string = 'http://localhost:3003/api/v1';
-  private publicKey: string;
+  private publicKey?: string;
+  private slug?: string;
 
   constructor(config: DigiPayConfig) {
+    if (!config.publicKey && !config.slug) {
+      throw new Error('Either publicKey or slug must be provided');
+    }
+    if (config.publicKey && config.slug) {
+      throw new Error('Cannot provide both publicKey and slug');
+    }
     this.publicKey = config.publicKey;
+    this.slug = config.slug;
   }
 
   async fetchMerchantMetadata(): Promise<MerchantMetadata> {
-    const response = await fetch(`${this.apiUrl}/merchant/metadata`, {
-      method: 'GET',
-      headers: {
-        'x-public-key': this.publicKey,
-      },
-    });
+    if (this.publicKey) {
+      const response = await fetch(`${this.apiUrl}/merchant/metadata`, {
+        method: 'GET',
+        headers: {
+          'x-public-key': this.publicKey,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'failed to fetch merchant metadata');
+      }
+
+      return response.json();
+    }
+
+    throw new Error('Public key required for fetching merchant metadata');
+  }
+
+  async fetchPaymentLinkData(slug: string): Promise<{
+    slug: string;
+    title: string;
+    amount: number;
+    currency: string;
+    description?: string;
+    minAmount?: number;
+    maxAmount?: number;
+    customFields?: any[];
+  }> {
+    const response = await fetch(`${this.apiUrl}/payment-link/slug/${slug}`);
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.message || 'failed to fetch merchant metadata');
+      throw new Error(errorData.message || 'failed to fetch payment link');
     }
 
     return response.json();
@@ -56,12 +88,35 @@ export class DigiPayAPI {
     description?: string;
     metadata?: Record<string, any>;
     customer?: { email?: string; name?: string };
+    customFieldsData?: Record<string, any>;
   }): Promise<Transaction> {
+    if (this.slug) {
+      const response = await fetch(`${this.apiUrl}/payment/slug-intent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          slug: this.slug,
+          amount: data.amount,
+          customer: data.customer,
+          customFieldsData: data.customFieldsData,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'failed to create payment');
+      }
+
+      return response.json();
+    }
+
     const response = await fetch(`${this.apiUrl}/payment/inline-intent`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-public-key': this.publicKey,
+        'x-public-key': this.publicKey!,
       },
       body: JSON.stringify(data),
     });
@@ -75,12 +130,17 @@ export class DigiPayAPI {
   }
 
   async approvePayment(transactionRef: string, paymentId: string): Promise<Transaction> {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    if (this.publicKey) {
+      headers['x-public-key'] = this.publicKey;
+    }
+
     const response = await fetch(`${this.apiUrl}/payment/approve`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-public-key': this.publicKey,
-      },
+      headers,
       body: JSON.stringify({
         transactionRef,
         paymentId,
@@ -96,12 +156,17 @@ export class DigiPayAPI {
   }
 
   async completePayment(transactionRef: string, txid: string): Promise<Transaction> {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    if (this.publicKey) {
+      headers['x-public-key'] = this.publicKey;
+    }
+
     const response = await fetch(`${this.apiUrl}/payment/complete`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-public-key': this.publicKey,
-      },
+      headers,
       body: JSON.stringify({
         transactionRef,
         txid,
@@ -123,6 +188,10 @@ export class DigiPayAPI {
       username: string;
     };
   }): Promise<{ uid: string; username: string; lastAuthenticatedAt: Date }> {
+    if (!this.publicKey) {
+      throw new Error('Public key required for customer sign in');
+    }
+
     const response = await fetch(`${this.apiUrl}/customer/signin`, {
       method: 'POST',
       headers: {
@@ -142,6 +211,10 @@ export class DigiPayAPI {
   }
 
   async signOutCustomer(piUserId: string): Promise<void> {
+    if (!this.publicKey) {
+      throw new Error('Public key required for customer sign out');
+    }
+
     const response = await fetch(`${this.apiUrl}/customer/signout`, {
       method: 'POST',
       headers: {

@@ -546,8 +546,10 @@ export class DigiPay {
   }
 
   async open(): Promise<void> {
-    if (!this.config.publicKey) {
-      this.handleError(new Error('Public key is required'));
+    if (!this.config.publicKey && !this.config.slug) {
+      if (this.config.onError) {
+        this.config.onError('Either publicKey or slug is required');
+      }
       return;
     }
 
@@ -557,9 +559,20 @@ export class DigiPay {
       document.body.style.overflow = 'hidden';
       this.showView(this.loadingView);
 
-      const merchantData = await this.api.fetchMerchantMetadata();
-      this.merchantData = merchantData;
-      document.getElementById('digipayMerchantName')!.textContent = merchantData.name;
+      if (this.config.publicKey) {
+        const merchantData = await this.api.fetchMerchantMetadata();
+        this.merchantData = merchantData;
+        document.getElementById('digipayMerchantName')!.textContent = merchantData.name;
+      } else if (this.config.slug) {
+        const paymentLinkData = await this.api.fetchPaymentLinkData(this.config.slug);
+        document.getElementById('digipayMerchantName')!.textContent = paymentLinkData.title;
+        this.config.description = paymentLinkData.description || this.config.description;
+        if (paymentLinkData.amount > 0) {
+          this.baseAmount = paymentLinkData.amount;
+          this.config.amount = paymentLinkData.amount.toString();
+        }
+        this.config.currency = paymentLinkData.currency;
+      }
 
       await this.updateAmountWithRates();
       this.showView(this.initialView);
