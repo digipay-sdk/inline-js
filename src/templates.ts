@@ -632,7 +632,10 @@ export const MODAL_STYLES = `
   }
 
   .digipay-success-icon {
-    margin-bottom: 24px;
+    margin: 0 auto 24px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
 
   .digipay-success-text {
