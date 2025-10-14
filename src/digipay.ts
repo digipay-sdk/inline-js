@@ -21,13 +21,18 @@ export class DigiPay {
   private closeErrorBtn!: HTMLButtonElement;
   private retryBtn!: HTMLButtonElement;
   private currencySelect!: HTMLSelectElement;
+  private currencySelectAuth!: HTMLSelectElement;
   private backBtn!: HTMLButtonElement;
   private confirmBtn!: HTMLButtonElement;
   private explorerBtn!: HTMLButtonElement;
   private walletInput!: HTMLInputElement;
   private walletError!: HTMLElement;
+  private logoutBtn!: HTMLButtonElement;
+  private payNowBtn!: HTMLButtonElement;
 
   private loadingView!: HTMLElement;
+  private authApprovalView!: HTMLElement;
+  private authenticatedView!: HTMLElement;
   private initialView!: HTMLElement;
   private walletView!: HTMLElement;
   private successView!: HTMLElement;
@@ -70,13 +75,18 @@ export class DigiPay {
     this.closeErrorBtn = document.getElementById('digipayCloseErrorBtn') as HTMLButtonElement;
     this.retryBtn = document.getElementById('digipayRetryBtn') as HTMLButtonElement;
     this.currencySelect = document.getElementById('digipayCurrency') as HTMLSelectElement;
+    this.currencySelectAuth = document.getElementById('digipayCurrencyAuth') as HTMLSelectElement;
     this.backBtn = document.getElementById('digipayBackBtn') as HTMLButtonElement;
     this.confirmBtn = document.getElementById('digipayConfirmBtn') as HTMLButtonElement;
     this.explorerBtn = document.getElementById('digipayExplorerBtn') as HTMLButtonElement;
     this.walletInput = document.getElementById('userWalletAddress') as HTMLInputElement;
     this.walletError = document.getElementById('walletAddressError')!;
+    this.logoutBtn = document.getElementById('digipayLogoutBtn') as HTMLButtonElement;
+    this.payNowBtn = document.getElementById('digipayPayNowBtn') as HTMLButtonElement;
 
     this.loadingView = document.getElementById('digipayLoadingView')!;
+    this.authApprovalView = document.getElementById('digipayAuthApprovalView')!;
+    this.authenticatedView = document.getElementById('digipayAuthenticatedView')!;
     this.initialView = document.getElementById('digipayInitialView')!;
     this.walletView = document.getElementById('digipayWalletView')!;
     this.successView = document.getElementById('digipaySuccessView')!;
@@ -93,6 +103,16 @@ export class DigiPay {
       }
       this.currencySelect.appendChild(option);
     });
+
+    this.config.currencies?.forEach(currency => {
+      const option = document.createElement('option');
+      option.value = currency;
+      option.textContent = currency;
+      if (currency === this.config.currency) {
+        option.selected = true;
+      }
+      this.currencySelectAuth.appendChild(option);
+    });
   }
 
   private updateContent(): void {
@@ -108,6 +128,8 @@ export class DigiPay {
 
     this.generateBtn.onclick = () => this.generateWalletAddress();
     this.loginBtn.onclick = () => this.login();
+    this.logoutBtn.onclick = () => this.logout();
+    this.payNowBtn.onclick = () => this.generateWalletAddressAuth();
     this.copyBtn.onclick = () => this.copyWalletAddress();
     this.cancelBtn.onclick = () => this.cancelPayment();
     this.closeSuccessBtn.onclick = () => this.close();
@@ -119,6 +141,10 @@ export class DigiPay {
     this.currencySelect.onchange = async (e) => {
       this.config.currency = (e.target as HTMLSelectElement).value;
       await this.updateAmountWithRates();
+    };
+    this.currencySelectAuth.onchange = async (e) => {
+      this.config.currency = (e.target as HTMLSelectElement).value;
+      await this.updateAmountWithRatesAuth();
     };
 
     this.walletInput.oninput = () => {
@@ -153,6 +179,8 @@ export class DigiPay {
 
   private showView(view: HTMLElement): void {
     this.loadingView.style.display = 'none';
+    this.authApprovalView.style.display = 'none';
+    this.authenticatedView.style.display = 'none';
     this.initialView.style.display = 'none';
     this.walletView.style.display = 'none';
     this.successView.style.display = 'none';
@@ -261,18 +289,114 @@ export class DigiPay {
     }
 
     try {
-      this.setButtonLoading(this.loginBtn, true);
+      this.showView(this.authApprovalView);
+
       const scopes = ['username', 'payments', 'wallet_address'];
       const auth = await window.Pi.authenticate(scopes, this.handleIncompletePayment);
-      console.log('auth', auth);
+
       this.piUser = auth;
-      this.walletInput.value = auth.user.uid;
-      const validateEvent = new Event('input', { bubbles: true });
-      this.walletInput.dispatchEvent(validateEvent);
+
+      const customer = await this.api.signInCustomer(auth);
+
+      document.getElementById('digipayAuthUsername')!.textContent = auth.user.username;
+      document.getElementById('digipayAuthUid')!.textContent = auth.user.uid;
+      document.getElementById('digipayMerchantNameAuth')!.textContent = this.merchantData!.name;
+      document.getElementById('digipayDescriptionAuth')!.textContent = this.config.description || '';
+
+      await this.updateAmountWithRatesAuth();
+
+      this.showView(this.authenticatedView);
+    } catch (error: any) {
+      this.handleError(error);
+    }
+  }
+
+  private async logout(): Promise<void> {
+    if (!this.piUser) return;
+
+    this.setButtonLoading(this.logoutBtn, true);
+    this.payNowBtn.disabled = true;
+
+    try {
+      await this.api.signOutCustomer(this.piUser.user.uid);
+      this.piUser = null;
+      this.showView(this.initialView);
     } catch (error: any) {
       this.handleError(error);
     } finally {
-      this.setButtonLoading(this.loginBtn, false);
+      this.setButtonLoading(this.logoutBtn, false);
+      this.payNowBtn.disabled = false;
+    }
+  }
+
+  private async generateWalletAddressAuth(): Promise<void> {
+    if (!this.piUser) {
+      this.handleError(new Error('User not authenticated'));
+      return;
+    }
+
+    if (!window.Pi) {
+      this.handleError(new Error('Pi SDK not loaded'));
+      return;
+    }
+
+    this.setButtonLoading(this.payNowBtn, true);
+
+    try {
+      const paymentIntent = await this.api.createPaymentIntent({
+        amount: parseFloat(this.config.amount),
+        currency: this.config.currency || 'PI',
+        description: this.config.description,
+        metadata: this.config.metadata,
+        customer: this.config.customer,
+      });
+
+      this.transaction = paymentIntent;
+
+      const paymentData = {
+        amount: this.transaction.amount,
+        memo: this.config.description || 'Payment',
+        metadata: {
+          transactionRef: this.transaction.transactionref,
+          piPaymentId: this.transaction.pipaymentid,
+          ...this.config.metadata,
+        },
+      };
+
+      await window.Pi.createPayment(paymentData, {
+        onReadyForServerApproval: this.handlePaymentApproval,
+        onReadyForServerCompletion: this.handlePaymentCompletion,
+        onCancel: this.handlePaymentCancel,
+        onError: this.handlePaymentError,
+      });
+    } catch (error: any) {
+      this.handleError(error);
+    } finally {
+      this.setButtonLoading(this.payNowBtn, false);
+    }
+  }
+
+  private async updateAmountWithRatesAuth(): Promise<void> {
+    const amountElement = document.getElementById('digipayAmountAuth')!;
+    const skeletonElement = document.getElementById('digipayAmountSkeletonAuth')!;
+
+    amountElement.style.visibility = 'hidden';
+    skeletonElement.style.display = 'block';
+
+    try {
+      const result = await this.api.convertAmount(
+        this.baseAmount,
+        'PI',
+        this.config.currency || 'PI'
+      );
+      this.config.amount = result.convertedAmount.toFixed(2);
+      const symbol = CURRENCY_SYMBOLS[this.config.currency! as keyof typeof CURRENCY_SYMBOLS] || this.config.currency;
+      amountElement.textContent = symbol + ' ' + this.config.amount;
+    } catch (error) {
+      console.error('Error updating amount:', error);
+    } finally {
+      skeletonElement.style.display = 'none';
+      amountElement.style.visibility = 'visible';
     }
   }
 
@@ -313,37 +437,53 @@ export class DigiPay {
     console.log('Incomplete payment:', payment);
   };
 
-  private handlePaymentApproval = (paymentId: string): void => {
-    console.log('Payment approved:', paymentId);
+  private handlePaymentApproval = async (paymentId: string): Promise<void> => {
+    if (!this.transaction) {
+      this.handleError(new Error('No transaction found'));
+      return;
+    }
+
+    try {
+      const result = await this.api.approvePayment(
+        this.transaction.transactionref,
+        paymentId
+      );
+      this.transaction = result;
+
+      document.getElementById('digipayWalletView')!.style.display = 'none';
+      const verifyingState = document.getElementById('digipayVerifyingState')!;
+      verifyingState.style.display = 'block';
+    } catch (error: any) {
+      this.handleError(error);
+    }
   };
 
   private handlePaymentCompletion = async (paymentId: string, txid: string): Promise<void> => {
-    await this.completePayment(txid);
-  };
-
-  private handlePaymentCancel = (paymentId: string): void => {
-    this.cancelPayment();
-  };
-
-  private handlePaymentError = (error: Error): void => {
-    this.handleError(error);
-  };
-
-  private async completePayment(txid: string): Promise<void> {
-    if (!this.transaction) return;
+    if (!this.transaction) {
+      this.handleError(new Error('No transaction found'));
+      return;
+    }
 
     try {
       const result = await this.api.completePayment(
         this.transaction.transactionref,
         txid
       );
-
       this.transaction = result;
       this.processPayment();
     } catch (error: any) {
       this.handleError(error);
     }
-  }
+  };
+
+  private handlePaymentCancel = (paymentId: string): void => {
+    this.cancelPayment();
+  };
+
+  private handlePaymentError = (error: Error, payment?: any): void => {
+    console.error('Payment error:', error, payment);
+    this.handleError(error);
+  };
 
   private processPayment(): void {
     if (this.timer) clearInterval(this.timer);
@@ -372,12 +512,16 @@ export class DigiPay {
   }
 
   private openExplorer(): void {
-    const explorerUrl = 'https://pi-blockchain.net/tx/' + document.getElementById('digipayReference')!.textContent;
+    const explorerUrl = 'https://blockexplorer.minepi.com/tx/' + document.getElementById('digipayReference')!.textContent;
     window.open(explorerUrl, '_blank');
   }
 
   private goBack(): void {
-    this.showView(this.initialView);
+    if (this.piUser) {
+      this.showView(this.authenticatedView);
+    } else {
+      this.showView(this.initialView);
+    }
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
@@ -435,6 +579,7 @@ export class DigiPay {
 
     this.transaction = null;
     this.merchantData = null;
+    this.piUser = null;
     this.walletInput.value = '';
 
     if (this.config.onCancel) {

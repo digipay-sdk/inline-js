@@ -74,11 +74,33 @@ export class DigiPayAPI {
     return response.json();
   }
 
+  async approvePayment(transactionRef: string, paymentId: string): Promise<Transaction> {
+    const response = await fetch(`${this.apiUrl}/payment/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-public-key': this.publicKey,
+      },
+      body: JSON.stringify({
+        transactionRef,
+        paymentId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to approve payment');
+    }
+
+    return response.json();
+  }
+
   async completePayment(transactionRef: string, txid: string): Promise<Transaction> {
     const response = await fetch(`${this.apiUrl}/payment/complete`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-public-key': this.publicKey,
       },
       body: JSON.stringify({
         transactionRef,
@@ -87,9 +109,51 @@ export class DigiPayAPI {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to complete payment on backend');
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to complete payment');
     }
 
     return response.json();
+  }
+
+  async signInCustomer(authResult: {
+    accessToken: string;
+    user: {
+      uid: string;
+      username: string;
+    };
+  }): Promise<{ uid: string; username: string; lastAuthenticatedAt: Date }> {
+    const response = await fetch(`${this.apiUrl}/customer/signin`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-public-key': this.publicKey,
+      },
+      body: JSON.stringify({ authResult }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to sign in customer');
+    }
+
+    const result = await response.json();
+    return result.data;
+  }
+
+  async signOutCustomer(piUserId: string): Promise<void> {
+    const response = await fetch(`${this.apiUrl}/customer/signout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-public-key': this.publicKey,
+      },
+      body: JSON.stringify({ piUserId }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to sign out customer');
+    }
   }
 }

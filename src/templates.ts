@@ -19,6 +19,60 @@ export const MODAL_HTML = `
             </div>
           </div>
 
+          <div id="digipayAuthApprovalView" style="display: none;">
+            <div class="digipay-section digipay-auth-content">
+              <div class="digipay-auth-spinner"></div>
+              <h3>Waiting for Pi Authentication</h3>
+              <p>Please approve the authentication request in your Pi Browser</p>
+            </div>
+          </div>
+
+          <div id="digipayAuthenticatedView" style="display: none;">
+            <div class="digipay-section">
+              <div class="digipay-user-card">
+                <div class="digipay-user-icon">
+                  <svg viewBox="0 0 24 24" width="48" height="48">
+                    <path fill="#F3B641" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+                  </svg>
+                </div>
+                <h3 id="digipayAuthUsername"></h3>
+                <p class="digipay-auth-uid">UID: <span id="digipayAuthUid"></span></p>
+                <button class="digipay-button secondary small" id="digipayLogoutBtn">
+                  Logout
+                </button>
+              </div>
+            </div>
+            <div class="digipay-section">
+              <div class="digipay-section-header">
+                <h2>Order Summary</h2>
+                <div class="digipay-currency-selector">
+                  <select id="digipayCurrencyAuth" class="digipay-select"></select>
+                </div>
+              </div>
+              <div class="digipay-merchant">
+                <div class="digipay-merchant-logo">
+                  <span>D</span>
+                </div>
+                <div class="digipay-merchant-info">
+                  <h3 id="digipayMerchantNameAuth"></h3>
+                  <p id="digipayDescriptionAuth"></p>
+                </div>
+              </div>
+              <div class="digipay-amount-wrapper">
+                <div class="digipay-amount">
+                  <span id="digipayAmountAuth"></span>
+                </div>
+                <div class="digipay-amount-skeleton" id="digipayAmountSkeletonAuth"></div>
+              </div>
+            </div>
+            <div class="digipay-section">
+              <button class="digipay-button primary" id="digipayPayNowBtn">
+                <span class="digipay-btn-content">Pay Now</span>
+                <div class="digipay-btn-spinner" style="display: none;"></div>
+              </button>
+            </div>
+          </div>
+
           <div id="digipayInitialView">
             <div class="digipay-section">
               <div class="digipay-section-header">
@@ -660,6 +714,76 @@ export const MODAL_STYLES = `
     justify-content: center;
     min-height: 300px;
     text-align: center;
+  }
+
+  .digipay-auth-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    text-align: center;
+    padding: 32px;
+  }
+
+  .digipay-auth-content h3 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #0A0F1C;
+    margin: 24px 0 8px 0;
+  }
+
+  .digipay-auth-content p {
+    color: #666;
+    margin: 0;
+  }
+
+  .digipay-auth-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #F3B641;
+    border-radius: 50%;
+    animation: rotate 1s linear infinite;
+  }
+
+  .digipay-user-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px;
+    background: #f9f9f9;
+    border-radius: 16px;
+    margin-bottom: 16px;
+  }
+
+  .digipay-user-icon {
+    margin-bottom: 16px;
+  }
+
+  .digipay-user-card h3 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #0A0F1C;
+    margin: 0 0 8px 0;
+  }
+
+  .digipay-auth-uid {
+    color: #666;
+    font-size: 14px;
+    font-family: monospace;
+    margin: 0 0 16px 0;
+  }
+
+  .digipay-button.small {
+    padding: 8px 24px;
+    font-size: 14px;
+    width: auto;
+  }
+
+  @keyframes rotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
   }
 
   .digipay-spinner {
