@@ -45,7 +45,7 @@ export class DigiPay {
       ...config,
     };
 
-    this.baseAmount = parseFloat(this.config.amount);
+    this.baseAmount = this.config.amount ? parseFloat(this.config.amount) : 0;
     this.api = new DigiPayAPI(this.config);
   }
 
@@ -248,7 +248,7 @@ export class DigiPay {
 
     try {
       const paymentIntent = await this.api.createPaymentIntent({
-        amount: parseFloat(this.config.amount),
+        amount: parseFloat(this.config.amount || '0'),
         currency: this.config.currency || 'PI',
         description: this.config.description,
         metadata: this.config.metadata,
@@ -344,7 +344,7 @@ export class DigiPay {
 
     try {
       const paymentIntent = await this.api.createPaymentIntent({
-        amount: parseFloat(this.config.amount),
+        amount: parseFloat(this.config.amount || '0'),
         currency: this.config.currency || 'PI',
         description: this.config.description,
         metadata: this.config.metadata,
@@ -546,9 +546,9 @@ export class DigiPay {
   }
 
   async open(): Promise<void> {
-    if (!this.config.publicKey && !this.config.slug) {
+    if (!this.config.publicKey && !this.config.slug && !this.config.inv) {
       if (this.config.onError) {
-        this.config.onError('Either publicKey or slug is required');
+        this.config.onError('One of publicKey, slug, or inv is required');
       }
       return;
     }
@@ -578,6 +578,19 @@ export class DigiPay {
           this.config.amount = paymentLinkData.amount.toString();
         }
         this.config.currency = paymentLinkData.currency;
+      } else if (this.config.inv) {
+        const invoiceData = await this.api.fetchInvoiceData(this.config.inv);
+        this.merchantData = {
+          name: invoiceData.merchant.name,
+          email: invoiceData.merchant.email,
+          publickey: '',
+          kycstatus: ''
+        };
+        document.getElementById('digipayMerchantName')!.textContent = `Invoice from ${invoiceData.merchant.name}`;
+        this.config.description = this.config.description || `Invoice Payment`;
+        this.baseAmount = invoiceData.totalAmount;
+        this.config.amount = invoiceData.totalAmount.toString();
+        this.config.currency = invoiceData.currency;
       }
 
       await this.updateAmountWithRates();

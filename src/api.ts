@@ -4,16 +4,21 @@ export class DigiPayAPI {
   private apiUrl: string = 'http://localhost:3003/api/v1';
   private publicKey?: string;
   private slug?: string;
+  private inv?: string;
 
   constructor(config: DigiPayConfig) {
-    if (!config.publicKey && !config.slug) {
-      throw new Error('Either publicKey or slug must be provided');
+    const providedParams = [config.publicKey, config.slug, config.inv].filter(Boolean).length;
+
+    if (providedParams === 0) {
+      throw new Error('One of publicKey, slug, or inv must be provided');
     }
-    if (config.publicKey && config.slug) {
-      throw new Error('Cannot provide both publicKey and slug');
+    if (providedParams > 1) {
+      throw new Error('Cannot provide more than one of publicKey, slug, or inv');
     }
+
     this.publicKey = config.publicKey;
     this.slug = config.slug;
+    this.inv = config.inv;
   }
 
   async fetchMerchantMetadata(): Promise<MerchantMetadata> {
@@ -55,6 +60,25 @@ export class DigiPayAPI {
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'failed to fetch payment link');
+    }
+
+    return response.json();
+  }
+
+  async fetchInvoiceData(inv: string): Promise<{
+    slug: string;
+    totalAmount: number;
+    currency: string;
+    merchant: {
+      name: string;
+      email: string;
+    };
+  }> {
+    const response = await fetch(`${this.apiUrl}/invoice/slug/${inv}`);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'failed to fetch invoice');
     }
 
     return response.json();
@@ -102,6 +126,30 @@ export class DigiPayAPI {
         },
         body: JSON.stringify({
           slug: this.slug,
+          amount: data.amount,
+          currency: data.currency,
+          description: data.description,
+          metadata: data.metadata,
+          customer: data.customer,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'failed to create payment');
+      }
+
+      return response.json();
+    }
+
+    if (this.inv) {
+      const response = await fetch(`${this.apiUrl}/payment/inline-intent-inv`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          inv: this.inv,
           amount: data.amount,
           currency: data.currency,
           description: data.description,
@@ -212,6 +260,24 @@ export class DigiPayAPI {
       return result.data;
     }
 
+    if (this.inv) {
+      const response = await fetch(`${this.apiUrl}/customer/signin-inv`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ inv: this.inv, authResult }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to sign in customer');
+      }
+
+      const result = await response.json();
+      return result.data;
+    }
+
     if (!this.publicKey) {
       throw new Error('Public key required for customer sign in');
     }
@@ -242,6 +308,23 @@ export class DigiPayAPI {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ slug: this.slug, piUserId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to sign out customer');
+      }
+
+      return;
+    }
+
+    if (this.inv) {
+      const response = await fetch(`${this.apiUrl}/customer/signout-inv`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ inv: this.inv, piUserId }),
       });
 
       if (!response.ok) {

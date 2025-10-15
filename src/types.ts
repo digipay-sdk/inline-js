@@ -1,8 +1,9 @@
 export interface DigiPayConfig {
   publicKey?: string;
   slug?: string;
+  inv?: string;
   description?: string;
-  amount: string;
+  amount?: string;
   currency?: string;
   currencies?: string[];
   metadata?: Record<string, any>;
