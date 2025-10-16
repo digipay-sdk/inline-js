@@ -546,9 +546,9 @@ export class DigiPay {
   }
 
   async open(): Promise<void> {
-    if (!this.config.publicKey && !this.config.slug && !this.config.inv) {
+    if (!this.config.publicKey && !this.config.slug && !this.config.inv && !this.config.tranRef) {
       if (this.config.onError) {
-        this.config.onError('One of publicKey, slug, or inv is required');
+        this.config.onError('One of publicKey, slug, inv, or tranRef is required');
       }
       return;
     }
@@ -558,6 +558,53 @@ export class DigiPay {
       this.overlay.style.display = 'block';
       document.body.style.overflow = 'hidden';
       this.showView(this.loadingView);
+
+      if (this.config.tranRef) {
+        const transactionData = await this.api.fetchTransactionData(this.config.tranRef);
+
+        if (transactionData.status === 'success') {
+          this.close();
+          if (this.config.onSuccess) {
+            this.config.onSuccess({
+              transactionref: transactionData.transactionref,
+              amount: transactionData.amount,
+              currency: transactionData.currency,
+              status: transactionData.status,
+              pipaymentid: transactionData.pipaymentid,
+              paymentwalletaddress: '',
+              qrcodeurl: '',
+            });
+          }
+          return;
+        }
+
+        this.merchantData = {
+          name: transactionData.merchantname,
+          email: '',
+          publickey: '',
+          kycstatus: ''
+        };
+
+        this.transaction = {
+          transactionref: transactionData.transactionref,
+          amount: transactionData.amount,
+          currency: transactionData.currency,
+          status: transactionData.status,
+          pipaymentid: transactionData.pipaymentid,
+          paymentwalletaddress: '',
+          qrcodeurl: '',
+        };
+
+        document.getElementById('digipayMerchantName')!.textContent = transactionData.merchantname;
+        this.config.description = transactionData.description || 'Payment';
+        this.baseAmount = transactionData.amount;
+        this.config.amount = transactionData.amount.toString();
+        this.config.currency = transactionData.currency;
+
+        await this.updateAmountWithRates();
+        await this.login();
+        return;
+      }
 
       if (this.config.publicKey) {
         const merchantData = await this.api.fetchMerchantMetadata();

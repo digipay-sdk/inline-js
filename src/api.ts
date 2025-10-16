@@ -5,20 +5,22 @@ export class DigiPayAPI {
   private publicKey?: string;
   private slug?: string;
   private inv?: string;
+  private tranRef?: string;
 
   constructor(config: DigiPayConfig) {
-    const providedParams = [config.publicKey, config.slug, config.inv].filter(Boolean).length;
+    const providedParams = [config.publicKey, config.slug, config.inv, config.tranRef].filter(Boolean).length;
 
     if (providedParams === 0) {
-      throw new Error('One of publicKey, slug, or inv must be provided');
+      throw new Error('One of publicKey, slug, inv, or tranRef must be provided');
     }
     if (providedParams > 1) {
-      throw new Error('Cannot provide more than one of publicKey, slug, or inv');
+      throw new Error('Cannot provide more than one of publicKey, slug, inv, or tranRef');
     }
 
     this.publicKey = config.publicKey;
     this.slug = config.slug;
     this.inv = config.inv;
+    this.tranRef = config.tranRef;
   }
 
   async fetchMerchantMetadata(): Promise<MerchantMetadata> {
@@ -35,7 +37,8 @@ export class DigiPayAPI {
         throw new Error(errorData.message || 'failed to fetch merchant metadata');
       }
 
-      return response.json();
+      const result = await response.json();
+      return result.data;
     }
 
     throw new Error('Public key required for fetching merchant metadata');
@@ -62,7 +65,8 @@ export class DigiPayAPI {
       throw new Error(errorData.message || 'failed to fetch payment link');
     }
 
-    return response.json();
+    const result = await response.json();
+    return result.data;
   }
 
   async fetchInvoiceData(inv: string): Promise<{
@@ -81,7 +85,29 @@ export class DigiPayAPI {
       throw new Error(errorData.message || 'failed to fetch invoice');
     }
 
-    return response.json();
+    const result = await response.json();
+    return result.data;
+  }
+
+  async fetchTransactionData(tranRef: string): Promise<{
+    transactionref: string;
+    amount: number;
+    currency: string;
+    status: string;
+    pipaymentid: string;
+    description?: string;
+    merchantname: string;
+    createdat: string;
+  }> {
+    const response = await fetch(`${this.apiUrl}/payment/checkout/${tranRef}`);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'failed to fetch transaction');
+    }
+
+    const result = await response.json();
+    return result.data;
   }
 
   async getCurrencyRates(baseCurrency: string = 'PI'): Promise<CurrencyRatesResponse> {
@@ -91,7 +117,8 @@ export class DigiPayAPI {
       throw new Error('failed to fetch rates');
     }
 
-    return response.json();
+    const result = await response.json();
+    return result.data;
   }
 
   async convertAmount(
@@ -107,7 +134,8 @@ export class DigiPayAPI {
       throw new Error('failed to convert amount');
     }
 
-    return response.json();
+    const result = await response.json();
+    return result.data;
   }
 
   async createPaymentIntent(data: {
@@ -139,7 +167,8 @@ export class DigiPayAPI {
         throw new Error(errorData.message || 'failed to create payment');
       }
 
-      return response.json();
+      const result = await response.json(); 
+      return result.data;
     }
 
     if (this.inv) {
@@ -163,7 +192,8 @@ export class DigiPayAPI {
         throw new Error(errorData.message || 'failed to create payment');
       }
 
-      return response.json();
+      const result = await response.json();
+      return result.data;
     }
 
     const response = await fetch(`${this.apiUrl}/payment/inline-intent`, {
@@ -180,7 +210,8 @@ export class DigiPayAPI {
       throw new Error(errorData.message || 'failed to create payment');
     }
 
-    return response.json();
+    const result = await response.json();
+    return result.data;
   }
 
   async approvePayment(transactionRef: string, paymentId: string): Promise<Transaction> {
@@ -206,7 +237,8 @@ export class DigiPayAPI {
       throw new Error(errorData.message || 'Failed to approve payment');
     }
 
-    return response.json();
+    const result = await response.json();
+    return result.data;
   }
 
   async completePayment(transactionRef: string, txid: string): Promise<Transaction> {
@@ -232,7 +264,8 @@ export class DigiPayAPI {
       throw new Error(errorData.message || 'Failed to complete payment');
     }
 
-    return response.json();
+    const result = await response.json();
+    return result.data;
   }
 
   async signInCustomer(authResult: {
@@ -242,6 +275,24 @@ export class DigiPayAPI {
       username: string;
     };
   }): Promise<{ uid: string; username: string; lastAuthenticatedAt: Date }> {
+    if (this.tranRef) {
+      const response = await fetch(`${this.apiUrl}/customer/signin-tranref`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tranRef: this.tranRef, authResult }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to sign in customer');
+      }
+
+      const result = await response.json();
+      return result.data;
+    }
+
     if (this.slug) {
       const response = await fetch(`${this.apiUrl}/customer/signin-slug`, {
         method: 'POST',
@@ -301,6 +352,24 @@ export class DigiPayAPI {
   }
 
   async signOutCustomer(piUserId: string): Promise<void> {
+    if (this.tranRef) {
+      const response = await fetch(`${this.apiUrl}/customer/signout-tranref`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tranRef: this.tranRef, piUserId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to sign out customer');
+      }
+
+      const result = await response.json();
+      return result.data;
+    }
+
     if (this.slug) {
       const response = await fetch(`${this.apiUrl}/customer/signout-slug`, {
         method: 'POST',
@@ -315,7 +384,8 @@ export class DigiPayAPI {
         throw new Error(errorData.message || 'Failed to sign out customer');
       }
 
-      return;
+      const result = await response.json();
+      return result.data;
     }
 
     if (this.inv) {
@@ -332,7 +402,8 @@ export class DigiPayAPI {
         throw new Error(errorData.message || 'Failed to sign out customer');
       }
 
-      return;
+      const result = await response.json();
+      return result.data;
     }
 
     if (!this.publicKey) {
@@ -352,5 +423,8 @@ export class DigiPayAPI {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to sign out customer');
     }
+
+    const result = await response.json();
+    return result.data;
   }
 }

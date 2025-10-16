@@ -2,6 +2,7 @@ export interface DigiPayConfig {
   publicKey?: string;
   slug?: string;
   inv?: string;
+  tranRef?: string;
   description?: string;
   amount?: string;
   currency?: string;
