@@ -21,6 +21,9 @@
     "blockchain",
     "cryptocurrency"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "author": "DigiPay SDK",
   "license": "MIT",
   "devDependencies": {

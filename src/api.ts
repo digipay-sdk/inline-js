@@ -1,7 +1,7 @@
 import { DigiPayConfig, Transaction, MerchantMetadata, CurrencyRatesResponse } from './types';
 
 export class DigiPayAPI {
-  private apiUrl: string = 'http://localhost:3003/api/v1';
+  private apiUrl: string = 'https://digipay.digimart.live/api/v1';
   private publicKey?: string;
   private slug?: string;
   private inv?: string;
